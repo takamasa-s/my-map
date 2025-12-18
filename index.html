@@ -2,73 +2,75 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>現在地マップ</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>最強ラーメンマップ</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        html, body { height: 100%; margin: 0; padding: 0; }
-        #map { height: 100vh; width: 100vw; background: #e0e0e0; }
-        .locate-btn {
-            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
-            z-index: 1000; padding: 15px 25px; background: #007bff; color: white;
-            border: none; border-radius: 30px; font-weight: bold;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        html, body { height: 100%; margin: 0; display: flex; flex-direction: column; }
+        #container { display: flex; flex: 1; overflow: hidden; }
+        #sidebar { width: 300px; overflow-y: auto; background: white; border-right: 1px solid #ccc; padding: 10px; }
+        #map { flex: 1; }
+        .shop-item { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; }
+        .shop-item:hover { background: #f0f0f0; }
+        .rank { font-weight: bold; color: #e44; margin-right: 5px; }
+        .stars { color: #f80; }
+        @media (max-width: 600px) {
+            #container { flex-direction: column-reverse; }
+            #sidebar { width: 100%; height: 40%; border-right: none; border-top: 1px solid #ccc; }
         }
     </style>
 </head>
 <body>
 
-<div id="map"></div>
-<button class="locate-btn" onclick="getLocation()">現在地を表示</button>
+<div id="container">
+    <div id="sidebar">
+        <h3>🍜 周辺の人気店</h3>
+        <div id="shop-list"></div>
+    </div>
+    <div id="map"></div>
+</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // 1. 地図の初期化（少しズームアウトして開始）
-    const map = L.map('map', {
-        center: [35.6812, 139.7671],
-        zoom: 10,
-        zoomControl: false // スマホで見やすくするために一旦OFF
-    });
+    const map = L.map('map').setView([35.6812, 139.7671], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // 2. 信頼性の高いタイルサーバー（Esri World Street Map）に変更
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-        attribution: 'Tiles &copy; Esri'
-    }).addTo(map);
+    // サンプルデータ（本来はAPIから取得する部分）
+    const shops = [
+        { name: "麺処 究極", lat: 35.6812, lng: 139.7671, rating: 4.8, reviews: 1250 },
+        { name: "らーめん 昇龍", lat: 35.6852, lng: 139.7701, rating: 4.5, reviews: 800 },
+        { name: "濃厚つけ麺 頂", lat: 35.6782, lng: 139.7601, rating: 4.2, reviews: 650 },
+        { name: "中華そば 平和", lat: 35.6832, lng: 139.7631, rating: 3.9, reviews: 300 }
+    ];
 
-    // 3. 描画バグ対策：1秒後に地図のサイズを再計算させる
-    setTimeout(() => {
-        map.invalidateSize();
-    }, 1000);
+    const listEl = document.getElementById('shop-list');
 
-    let marker, circle;
+    function updateList() {
+        const bounds = map.getBounds();
+        // 1. 地図の表示範囲内にいる店だけに絞り込む
+        const visibleShops = shops.filter(shop => bounds.contains([shop.lat, shop.lng]));
 
-    function getLocation() {
-        const btn = document.querySelector('.locate-btn');
-        btn.innerText = "取得中...";
+        // 2. 人気順（評価が高い順）に並び替え
+        visibleShops.sort((a, b) => b.rating - a.rating);
 
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                const lat = pos.coords.latitude;
-                const lng = pos.coords.longitude;
-                const acc = pos.coords.accuracy;
+        // 3. リストを更新
+        listEl.innerHTML = "";
+        visibleShops.forEach((shop, index) => {
+            const div = document.createElement('div');
+            div.className = "shop-item";
+            div.innerHTML = `<span class="rank">${index + 1}</span> <b>${shop.name}</b><br>
+                             <span class="stars">★ ${shop.rating}</span> (${shop.reviews}件)`;
+            div.onclick = () => map.panTo([shop.lat, shop.lng]);
+            listEl.appendChild(div);
 
-                if (marker) map.removeLayer(marker);
-                if (circle) map.removeLayer(circle);
-
-                marker = L.marker([lat, lng]).addTo(map).bindPopup("現在地").openPopup();
-                circle = L.circle([lat, lng], { radius: acc }).addTo(map);
-
-                map.setView([lat, lng], 16);
-                btn.innerText = "現在地を表示";
-                map.invalidateSize(); // 移動後も再描画
-            },
-            (err) => {
-                alert("位置情報の取得に失敗しました。ブラウザの設定で位置情報を許可してください。");
-                btn.innerText = "現在地を表示";
-            },
-            { enableHighAccuracy: true, timeout: 10000 }
-        );
+            // 地図にピンを立てる
+            L.marker([shop.lat, shop.lng]).addTo(map).bindPopup(shop.name);
+        });
     }
+
+    // 地図を動かした時にリストを更新する
+    map.on('moveend', updateList);
+    updateList(); // 初回実行
 </script>
 </body>
 </html>
