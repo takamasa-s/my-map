@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>現在地マップ</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        html, body { height: 100%; margin: 0; padding: 0; }
+        #map { height: 100vh; width: 100vw; background: #e0e0e0; }
+        .locate-btn {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; padding: 15px 25px; background: #007bff; color: white;
+            border: none; border-radius: 30px; font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+<button class="locate-btn" onclick="getLocation()">現在地を表示</button>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // 1. 地図の初期化（少しズームアウトして開始）
+    const map = L.map('map', {
+        center: [35.6812, 139.7671],
+        zoom: 10,
+        zoomControl: false // スマホで見やすくするために一旦OFF
+    });
+
+    // 2. 信頼性の高いタイルサーバー（Esri World Street Map）に変更
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri'
+    }).addTo(map);
+
+    // 3. 描画バグ対策：1秒後に地図のサイズを再計算させる
+    setTimeout(() => {
+        map.invalidateSize();
+    }, 1000);
+
+    let marker, circle;
+
+    function getLocation() {
+        const btn = document.querySelector('.locate-btn');
+        btn.innerText = "取得中...";
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                const acc = pos.coords.accuracy;
+
+                if (marker) map.removeLayer(marker);
+                if (circle) map.removeLayer(circle);
+
+                marker = L.marker([lat, lng]).addTo(map).bindPopup("現在地").openPopup();
+                circle = L.circle([lat, lng], { radius: acc }).addTo(map);
+
+                map.setView([lat, lng], 16);
+                btn.innerText = "現在地を表示";
+                map.invalidateSize(); // 移動後も再描画
+            },
+            (err) => {
+                alert("位置情報の取得に失敗しました。ブラウザの設定で位置情報を許可してください。");
+                btn.innerText = "現在地を表示";
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    }
+</script>
+</body>
+</html>
